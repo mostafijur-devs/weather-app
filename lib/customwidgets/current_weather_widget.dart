@@ -21,6 +21,35 @@ class CurrentWeatherWidget extends StatelessWidget {
 
         child: ListView(
           children: [
+            Text(
+              '${value.currentWeather!.name} , ${value.currentWeather!.sys?.country}',
+              style: TextStyle(fontSize: 30),
+            ),
+            Text(
+              getFormattedDataTime(
+                  value.currentWeather!.dt!),
+              style: TextStyle(fontSize: 20),
+            ),
+            Row(
+              children: [
+                Image.network(
+                  getIconUrl(
+                    value.currentWeather!.weather!.first
+                        .icon!,
+                  ),
+                  height: 170,
+                  width: 170,
+                  fit: BoxFit.fill,
+                  color: Colors.cyan,
+                ),
+                Expanded(
+                  child: Text(
+                    '${value.currentWeather!.main!.temp!.round()}$degree${value.unitSymbol}',
+                    style: TextStyle(fontSize: 70),
+                  ),
+                )
+              ],
+            ),
             Card(
               elevation: 10,
               color: Color(0xffFCDCC2).withOpacity(.5),

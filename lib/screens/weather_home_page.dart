@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:weather_app/customwidgets/app_background.dart';
@@ -18,21 +21,61 @@ import '../weather_provider.dart';
 //   // TODO: implement initState
 // }
 
-class WeatherHomePage extends StatelessWidget {
+class WeatherHomePage extends StatefulWidget {
   const WeatherHomePage({super.key});
   static const String routeName = '/home';
 
-  Future<void> getData (BuildContext context) async{
-   await  context.read<WeatherProvider>().determinePosition();
-   final stutas = await context.read<WeatherProvider>().getTempStatus();
-   context.read<WeatherProvider>().getUnit(stutas);
-   context.read<WeatherProvider>().getWeatherData();
+  @override
+  State<WeatherHomePage> createState() => _WeatherHomePageState();
+}
+
+class _WeatherHomePageState extends State<WeatherHomePage> {
+  late StreamSubscription<List<ConnectivityResult>> subscription;
+  bool isConnected = true;
+
+  Future<void> getData ( ) async{
+    if( await isConnectivityInternet()){
+      await  context.read<WeatherProvider>().determinePosition();
+      final stutas = await context.read<WeatherProvider>().getTempStatus();
+      context.read<WeatherProvider>().getUnit(stutas);
+      context.read<WeatherProvider>().getWeatherData();
+    }
+    else{
+      setState(() {
+        isConnected = false;
+      });
+    }
+  }
+  Future<bool> isConnectivityInternet () async {
+    final result = await Connectivity().checkConnectivity();
+    return result.contains(ConnectivityResult.mobile) || result.contains(ConnectivityResult.wifi);
+
   }
 
+  @override
+  void didChangeDependencies() {
+    subscription = Connectivity().onConnectivityChanged.listen((result) {
+      if(result.contains(ConnectivityResult.wifi) || result.contains(ConnectivityResult.mobile)){
+        setState(() {
+          isConnected = true;
+          getData();
+          context.read<WeatherProvider>().getWeatherData();
+
+        });
+      }
+      else {
+        setState(() {
+          isConnected = false;
+        });
+      }
+    },);
+    getData();
+    super.didChangeDependencies();
+  }
   // bool isConnected = true;
   @override
   Widget build(BuildContext context) {
-    getData(context);
+
     context.read<WeatherProvider>().getWeatherData();
 
     return Scaffold(
@@ -45,7 +88,7 @@ class WeatherHomePage extends StatelessWidget {
         ),
         actions: [
           IconButton(onPressed: () {
-            getData(context);
+            getData();
 
           }, icon: Icon(Icons.location_on)),
           IconButton(onPressed: () {
@@ -70,6 +113,7 @@ class WeatherHomePage extends StatelessWidget {
               ? Stack(
                   children: [
                     AppBackground(),
+
                     SafeArea(
                       child: Padding(
                         padding: const EdgeInsets.only(
@@ -79,56 +123,26 @@ class WeatherHomePage extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${value.currentWeather!.name} , ${value.currentWeather!.sys?.country}',
-                                  style: TextStyle(fontSize: 30),
-                                ),
-                                Text(
-                                  getFormattedDataTime(
-                                      value.currentWeather!.dt!),
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                                Row(
-                                  children: [
-                                    Image.network(
-                                      getIconUrl(
-                                        value.currentWeather!.weather!.first
-                                            .icon!,
-                                      ),
-                                      height: 170,
-                                      width: 170,
-                                      fit: BoxFit.fill,
-                                      color: Colors.cyan,
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        '${value.currentWeather!.main!.temp!.round()}$degree${value.unitSymbol}',
-                                        style: TextStyle(fontSize: 70),
-                                      ),
-                                    )
-                                  ],
-                                ),
-                              ],
-                            ),
-                            Expanded(
-                                flex: 2,
+
+                              Expanded(
+                                flex: 10,
                                 child: CurrentWeatherWidget(
                                   currentWeather: value.currentWeather!,
                                   symbol: degree,
                                 )),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Today weather'),
-                                TextButton(
-                                    onPressed: () {},
-                                    child: Text('More forecast weather -->'))
-                              ],
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Today weather'),
+                                  TextButton(
+                                      onPressed: () {},
+                                      child: Text('More forecast weather -->'))
+                                ],
+                              ),
                             ),
                             Expanded(
+                              flex: 3,
                               child: ForecastWeatherWidgets(
                                 items: value.forecastWeather!.list!,
                                 symbol: value.unitSymbol,
@@ -138,11 +152,35 @@ class WeatherHomePage extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if(!isConnected) Container(
+                        height: double.infinity,
+                        width: double.infinity,
+                        color: Colors.black.withOpacity(0.7),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(15),
+                            child: Container(
+                              width: double.infinity,
+                              height: 30,
+                              color: Colors.black.withOpacity(0.5),
+                              child: Center(
+                                child: Text('Internet connection is failed',style:
+                                TextStyle(color: Colors.white),),
+                              ),
+                            ),
+                          ),
+                        )),
                   ],
                 )
 
-   : Center(child: CircularProgressIndicator())),
+   : Center(child: isConnected ? const CircularProgressIndicator()
+          : const Text('Internet is not connected'))),
     );
+  }
+  @override
+  void dispose() {
+    subscription.cancel();
+    super.dispose();
   }
 }
 
